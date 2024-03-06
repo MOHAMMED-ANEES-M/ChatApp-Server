@@ -18,6 +18,12 @@ const userSchema = new mongoose.Schema({
     type: String, 
     required: [true,'Please add password']
  }, 
+ image: {
+  type: String
+ },
+ bio: {
+  type: String
+ }
 },
 {
     timestamps:true

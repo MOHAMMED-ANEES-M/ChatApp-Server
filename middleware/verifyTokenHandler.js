@@ -14,7 +14,8 @@ const verifyToken=(req,res,next)=>{
             return res.status(401).json({message: 'Unauthorized: Invalid token'})
         }
         req.user= decoded.user
-        console.log(req.decoded);
+        console.log(req.user);
+        console.log('token success');
         next();
     });
   };
