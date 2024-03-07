@@ -56,7 +56,7 @@ const currentUser = asyncHandler(async (req,res) => {
     const id = req.user.id
     const user = await User.findById(id)
     res.json(user)
-    console.log('Current user:',user);
+    // console.log('Current user:',user);
 })
 
 // GET /api/users/
@@ -110,7 +110,7 @@ const updateUserProfile = asyncHandler(async (req,res) => {
 
     const updatedProfile = await User.findByIdAndUpdate( id, req.body, {new: true} )
     if(updatedProfile) {
-        res.status(200).json({ success: true, user: updatedProfile });
+        res.status(200).json({ success: true, user: updatedProfile });    
     } else {
         res.status(404);
         throw new Error('User not found');
@@ -119,5 +119,48 @@ const updateUserProfile = asyncHandler(async (req,res) => {
 })
 
 
+// PUT /api/users/update-password
+const changeUserPassword = asyncHandler(async (req,res) => {
 
-module.exports = { registerUser, loginUser, currentUser, getAllUsers, updateUserImage, updateUserProfile }
+    console.log(req.body,'change password req.body');
+    const id = req.user.id
+    const { password, newpassword, confnewpassword } = req.body
+
+    if ( !password || !newpassword || !confnewpassword ) {
+        res.status(400);
+        throw new Error('All fields are mandatory');
+    }
+
+    if ( newpassword !== confnewpassword ) {
+        res.status(400);
+        throw new Error('Password not matching');
+    }
+
+    const user = await User.findById(id)
+    if (user) {
+        const passwordMatch = await bcrypt.compare(password,user.password)
+        console.log(passwordMatch,'passMatch');
+        if (passwordMatch) {
+            if (await bcrypt.compare( newpassword, user.password )) {
+                res.status(400);
+                throw new Error('new password and current password should not be same');
+            }
+            const hashedPassword = await bcrypt.hash( newpassword, saltRounds )
+            const changedPassword = await User.findByIdAndUpdate(id,{password: hashedPassword})
+            if (changedPassword) {
+                console.log(changedPassword);
+                res.status(200).json({ success: true, user: changedPassword });
+            }
+        } else {
+        res.status(400);
+        throw new Error('Current Password is incorrect');
+        }
+    } else {
+        res.status(404);
+        throw new Error('User not found');
+    }
+})
+
+
+
+module.exports = { registerUser, loginUser, currentUser, getAllUsers, updateUserImage, updateUserProfile, changeUserPassword }
