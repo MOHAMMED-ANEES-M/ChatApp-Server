@@ -17,25 +17,29 @@ const userSchema = new mongoose.Schema({
   password: { 
     type: String, 
     required: [true,'Please add password']
- }, 
- image: {
-  type: String
- },
- bio: {
-  type: String
- },
- otp: {
-  type:String
-},
-otpTimestamp: {
-  type: Date,
-},
+  }, 
+  image: {
+    type: String
+  },
+  bio: {
+    type: String
+  },
+  verifyEmail: {
+    type: Boolean,
+    default: false
+  },
+  otp: {
+    type:String
+  },
+  otpTimestamp: {
+    type: Date,
+  },
 
-},
-{
-    timestamps:true
-}
-);
+  },
+  {
+      timestamps:true
+  }
+  );
 
 const User = mongoose.model('User', userSchema);
 

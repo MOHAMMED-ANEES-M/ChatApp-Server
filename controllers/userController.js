@@ -23,22 +23,45 @@ const transporter = nodemailer.createTransport({
 
 // POST /api/users/register
 const registerUser = asyncHandler(async (req,res) => {
-    const { firstname, lastname, email, password } = req.body
-    if( !firstname || !lastname || !email || !password ) {
+    const { firstname, lastname, email, password, confirmpassword } = req.body
+    if( !firstname || !lastname || !email || !password || !confirmpassword ) {
         res.status(400);
         throw new Error('All fields are mandatory')
+    }
+    if (password !== confirmpassword) {
+        res.status(400);
+        throw new Error('Password mismatch')
     }
     const userExist = await User.findOne({email})
     if (userExist) {
         res.status(400);
-        throw new Error('User already registered')
+        throw new Error('User already registered, Please Sign in')
     }
+    const otp = generateOTP();
     const hashedPassword = await bcrypt.hash( password, saltRounds )
     console.log('Hashed Password:',hashedPassword);
-    const user = await User.create({ firstname, lastname, email, password: hashedPassword })
+    const user = await User.create({ firstname, lastname, email, password: hashedPassword, otp, otpTimestamp: new Date() })
     if (user) {   
         console.log('User created',user);
-        res.status(201).json(user)
+        const mailOptions = {
+            to: email,
+            subject: 'OTP for email verification on ChatApp',
+            html: ` <p style='color: white;'>Dear ${user.firstname},</p>
+                    <p style='color: white;'>Thank you for registering with ChatApp.</p><br/>
+                    <p style='color: white;'>Enter the below mentioned one time password to verify your email address.</p>
+                    <h3 style='font-weight: bold; text-align: center; color: white;'>OTP: ${otp}</h3><br/><br/>
+                    <p style='color: white;'>Thank you,</p>
+                    <p style='font-weight: bold; color: white;'>ChatApp Team</p><br/><br/>
+                    <p style='font-weight: bold; color: white;'>Disclaimer: This is a system-generated email. Please do not reply to this email.</p> `,
+          };
+      
+          transporter.sendMail(mailOptions, (error, info) => {
+            if (error) {
+                res.status(500);
+                throw new Error('Failed to send OTP');
+            }
+            res.status(200).json({ success: true, message: "OTP sent successfully",user });
+          });
     } else {
         res.status(400);
         throw new Error('User data is invalid')
@@ -53,12 +76,41 @@ const loginUser = asyncHandler(async (req,res) => {
         throw new Error("All fields are mandatory")
     }
     const user = await User.findOne({email})
+    console.log(user,'login user');
     if ( user && (await bcrypt.compare( password, user.password ))) {
         const accessToken = jwt.sign(
              { user: { email: user.email, id: user.id }},
              process.env.ACCESS_TOKEN_SECRET,
              {expiresIn: '48h'})
-        res.status(200).json({ token: accessToken, success: true, user })
+             if (user.verifyEmail) {
+                console.log('email verified');
+                res.status(200).json({ token: accessToken, success: true, user })
+             } else {
+                console.log('not verified email');
+                const otp = generateOTP();
+                user.otp = otp;
+                user.otpTimestamp = new Date();
+                await user.save();
+                const mailOptions = {
+                    to: email,
+                    subject: 'OTP for email verification on ChatApp',
+                    html: ` <p style='color: white;'>Dear ${user.firstname},</p>
+                            <p style='color: white;'>Thank you for registering with ChatApp.</p><br/>
+                            <p style='color: white;'>Enter the below mentioned one time password to verify your email address.</p>
+                            <h3 style='font-weight: bold; text-align: center; color: white;'>OTP: ${otp}</h3><br/><br/>
+                            <p style='color: white;'>Thank you,</p>
+                            <p style='font-weight: bold; color: white;'>ChatApp Team</p><br/><br/>
+                            <p style='font-weight: bold; color: white;'>Disclaimer: This is a system-generated email. Please do not reply to this email.</p> `,
+                  };
+              
+                  transporter.sendMail(mailOptions, (error, info) => {
+                    if (error) {
+                        res.status(500);
+                        throw new Error('Failed to send OTP');
+                    }
+                    res.json({notVerified: true, message:"OTP sent successfully for email verification", token: accessToken, user})
+                  });
+             }
     } else {
         res.status(404);
         throw new Error("Email or Password is not valid")
@@ -176,12 +228,46 @@ const changeUserPassword = asyncHandler(async (req,res) => {
 })
 
 
+// PUT /api/users/update-email
+const updateUserEmail = asyncHandler(async (req, res) => {
+    const id = req.user.id;
+    const { email } = req.body;
+
+    if (!email) {
+        res.status(400);
+        throw new Error("Email is required");
+    }
+
+    const user = await User.findById(id);
+    if (!user) {
+        res.status(404);
+        throw new Error('User not found');
+    }
+
+    user.email = email;
+    const updatedEmail = await user.save();
+
+    if (updatedEmail) {
+        res.status(200).json({ success: true, user: updatedEmail });
+    } else {
+        res.status(500);
+        throw new Error('Failed to update email');
+    }
+});
+
+
   // POST /api/users/send-OTP
   const sendOTP = asyncHandler(async (req, res) => {
         console.log(req.body,'sendotp body');
       const user = await User.findById(req.user.id);
       const email = req.body.email;
-  
+
+      const emailExists = await User.findOne({ email });
+        if (emailExists) {
+            res.status(400);
+            throw new Error('Email is already in use');
+        }
+
       const otp = generateOTP();
       user.otp = otp;
       user.otpTimestamp = new Date();
@@ -201,24 +287,59 @@ const changeUserPassword = asyncHandler(async (req,res) => {
   
       transporter.sendMail(mailOptions, (error, info) => {
         if (error) {
-          return res.status(500).json({ error: 'Failed to send OTP' });
+            res.status(500);
+            throw new Error('Failed to send OTP');
         }
-        res.json({ success: 'OTP sent successfully' });
-        // You may want to remove the res.render('otp') line since you're sending JSON response.
+        res.status(200).json({ success: true, message: "OTP sent successfully" });
       });
     
   });
   
 
-    // POST /api/users/verify-OTP
+  // POST /api/users/verify-OTP
   const verifyOTP = asyncHandler(async (req, res) => {
-      const user = await Customer.findById(req.body.userId);
-      if (req.body.otp.otp === user.otp) {
-        res.status(200).json({ success: true });
+    console.log(req.body.otp,'verify otp body');
+      const user = await User.findById(req.user.id);
+      console.log(user.otp,'user otp');
+      if (req.body.otp === user.otp) {
+          user.verifyEmail = true
+          await user.save()
+          console.log('otp success');
+          res.status(200).json({ success: true, message: "OTP verified successfully" });
       } else {
-        res.status(500).json({ msg: 'Incorrect OTP' });
+        res.status(500);
+        throw new Error('Incorrect OTP');
+      }
+  });
+
+  
+  // POST /api/users/verify-registration
+  const verifyRegistration = asyncHandler(async (req, res) => {
+    console.log(req.body,'verify otp body');
+      const user = await User.findById(req.body.id);
+      console.log(user.otp,'user otp');
+      if (req.body.otp === user.otp) {
+          user.verifyEmail = true
+          await user.save()
+          console.log('otp success');
+          res.status(200).json({ success: true, message: "OTP verified successfully" });
+      } else {
+        res.status(500);
+        throw new Error('Incorrect OTP');
       }
   });
 
 
-module.exports = { registerUser, loginUser, currentUser, getAllUsers, updateUserImage, updateUserProfile, changeUserPassword, sendOTP, verifyOTP }
+module.exports = { 
+    registerUser, 
+    loginUser, 
+    currentUser, 
+    getAllUsers, 
+    updateUserImage, 
+    updateUserProfile, 
+    changeUserPassword, 
+    sendOTP, 
+    verifyOTP, 
+    updateUserEmail,
+    verifyRegistration
+}
