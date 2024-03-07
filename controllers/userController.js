@@ -5,6 +5,20 @@ const saltRounds = 10;
 var jwt = require('jsonwebtoken');
 const fs = require('fs'); 
 const path = require('path');
+const generateOTP = require('../middleware/otpGenerator');
+const nodemailer = require('nodemailer');
+
+
+const transporter = nodemailer.createTransport({
+    host: process.env.SMTP_HOST,
+    port: process.env.SMTP_PORT,
+    secure: process.env.SMTP_SECURE,
+    service: process.env.SMTP_SERVICE,
+    auth: {
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS,
+    },
+  });
 
 
 // POST /api/users/register
@@ -119,7 +133,7 @@ const updateUserProfile = asyncHandler(async (req,res) => {
 })
 
 
-// PUT /api/users/update-password
+// PUT /api/users/change-password
 const changeUserPassword = asyncHandler(async (req,res) => {
 
     console.log(req.body,'change password req.body');
@@ -162,5 +176,49 @@ const changeUserPassword = asyncHandler(async (req,res) => {
 })
 
 
+  // POST /api/users/send-OTP
+  const sendOTP = asyncHandler(async (req, res) => {
+        console.log(req.body,'sendotp body');
+      const user = await User.findById(req.user.id);
+      const email = req.body.email;
+  
+      const otp = generateOTP();
+      user.otp = otp;
+      user.otpTimestamp = new Date();
+      await user.save();
+  
+      const mailOptions = {
+        to: email,
+        subject: 'OTP for email verification on ChatApp',
+        html: ` <p style='color: white;'>Dear ${user.firstname},</p>
+                <p style='color: white;'>Thank you for registering with ChatApp.</p><br/>
+                <p style='color: white;'>Enter the below mentioned one time password to verify your email address.</p>
+                <h3 style='font-weight: bold; text-align: center; color: white;'>OTP: ${otp}</h3><br/><br/>
+                <p style='color: white;'>Thank you,</p>
+                <p style='font-weight: bold; color: white;'>ChatApp Team</p><br/><br/>
+                <p style='font-weight: bold; color: white;'>Disclaimer: This is a system-generated email. Please do not reply to this email.</p> `,
+      };
+  
+      transporter.sendMail(mailOptions, (error, info) => {
+        if (error) {
+          return res.status(500).json({ error: 'Failed to send OTP' });
+        }
+        res.json({ success: 'OTP sent successfully' });
+        // You may want to remove the res.render('otp') line since you're sending JSON response.
+      });
+    
+  });
+  
 
-module.exports = { registerUser, loginUser, currentUser, getAllUsers, updateUserImage, updateUserProfile, changeUserPassword }
+    // POST /api/users/verify-OTP
+  const verifyOTP = asyncHandler(async (req, res) => {
+      const user = await Customer.findById(req.body.userId);
+      if (req.body.otp.otp === user.otp) {
+        res.status(200).json({ success: true });
+      } else {
+        res.status(500).json({ msg: 'Incorrect OTP' });
+      }
+  });
+
+
+module.exports = { registerUser, loginUser, currentUser, getAllUsers, updateUserImage, updateUserProfile, changeUserPassword, sendOTP, verifyOTP }

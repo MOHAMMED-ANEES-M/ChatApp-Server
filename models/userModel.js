@@ -23,7 +23,14 @@ const userSchema = new mongoose.Schema({
  },
  bio: {
   type: String
- }
+ },
+ otp: {
+  type:String
+},
+otpTimestamp: {
+  type: Date,
+},
+
 },
 {
     timestamps:true
