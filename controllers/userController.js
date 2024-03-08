@@ -121,21 +121,43 @@ const loginUser = asyncHandler(async (req,res) => {
 const currentUser = asyncHandler(async (req,res) => {
     const id = req.user.id
     const user = await User.findById(id)
-    res.json(user)
-    // console.log('Current user:',user);
+    if(user) {
+        // console.log(user);
+        res.json(user)
+    } else {
+        res.status(404);
+        throw new Error('User not found');
+    }
 })
 
 // GET /api/users/
 const getAllUsers = async (req,res) => {
-    try{
     console.log('users');
     const users = await User.find()
-    // console.log(users);
-    res.json(users)
-    } catch(err) {
-        console.log(err);
+    if(users) {
+        // console.log(users);
+        res.json(users)
+    } else {
+        res.status(404);
+        throw new Error('User not found');
     }
 }
+
+
+// GET /api/users/:id
+const getUserById = async (req,res) => {
+    console.log('user by id');
+    const id = req.params.id
+    const user = await User.findById(id)
+    if(user) {
+        // console.log(user);
+        res.json({ success:true, user })
+    } else {
+        res.status(404);
+        throw new Error('User not found');
+    }
+}
+
 
 // PUT /api/users/update-image
 const updateUserImage = asyncHandler(async (req, res) => {
@@ -167,9 +189,9 @@ const updateUserImage = asyncHandler(async (req, res) => {
 const updateUserProfile = asyncHandler(async (req,res) => {
 
     const id = req.user.id
-    const { firstname, lastname, email, bio } = req.body
+    const { firstname, lastname, bio } = req.body
 
-    if ( !firstname || !lastname || !email || !bio ) {
+    if ( !firstname || !lastname || !bio ) {
         res.status(400);
         throw new Error('All fields are mandatory');
     }
@@ -334,7 +356,8 @@ module.exports = {
     registerUser, 
     loginUser, 
     currentUser, 
-    getAllUsers, 
+    getAllUsers,
+    getUserById, 
     updateUserImage, 
     updateUserProfile, 
     changeUserPassword, 

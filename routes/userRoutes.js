@@ -14,7 +14,8 @@ const {
     sendOTP, 
     verifyOTP, 
     updateUserEmail, 
-    verifyRegistration
+    verifyRegistration,
+    getUserById
 } = require('../controllers/userController');
 
 
@@ -22,6 +23,7 @@ router.post("/register", registerUser);
 router.post("/login", loginUser)
 router.get("/current", verifyToken, currentUser)
 router.get("/", verifyToken, getAllUsers)
+router.get("/:id", verifyToken, getUserById)
 router.put("/update-image", verifyToken, updateUserImage)
 router.put("/update-profile", verifyToken, updateUserProfile)
 router.put("/change-password", verifyToken, changeUserPassword)
