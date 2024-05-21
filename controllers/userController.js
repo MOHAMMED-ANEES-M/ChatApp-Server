@@ -7,6 +7,7 @@ const fs = require('fs');
 const path = require('path');
 const generateOTP = require('../middleware/otpGenerator');
 const nodemailer = require('nodemailer');
+const axios = require('axios');
 
 
 const transporter = nodemailer.createTransport({
@@ -68,6 +69,48 @@ const registerUser = asyncHandler(async (req,res) => {
     }
 })
 
+
+// POST /api/users/google-register
+const registerGoogleUser = asyncHandler(async (req,res) => {
+    const { firstname, email, image, verifyEmail } = req.body
+    console.log(req.body,'google signup');
+    const userExist = await User.findOne({email})
+    let base64Image = null;
+    if (image) {
+        base64Image = await fetchImageAsBase64(image);
+    }
+    if (!userExist) {
+        console.log('no user');
+        const user = await User.create({ firstname, email, image: base64Image, verifyEmail })
+        if (user) {
+            const accessToken = jwt.sign(
+                { user: { email: user.email, id: user.id }}, process.env.ACCESS_TOKEN_SECRET
+            )
+            res.status(200).json({ success: true, user, token: accessToken });
+            console.log('Registration Success with Google');
+        }
+    } else {
+        console.log(userExist.email, userExist.id,'userexist');
+        const accessToken = jwt.sign(
+            { user: { email: userExist.email, id: userExist.id }}, process.env.ACCESS_TOKEN_SECRET
+        )
+        console.log(accessToken,'accesstoken');
+        res.status(200).json({ success: true, user: userExist, token: accessToken });
+        console.log('Registration(Exist) Success with Google');
+    }
+})
+
+const fetchImageAsBase64 = async (imageUrl) => {
+    try {
+      const response = await axios.get(imageUrl, { responseType: 'arraybuffer' });
+      const base64Image = Buffer.from(response.data, 'binary').toString('base64');
+      return `data:${response.headers['content-type']};base64,${base64Image}`;
+    } catch (error) {
+      console.error('Error fetching image:', error);
+      return null;
+    }
+  };
+
 // POST /api/users/login
 const loginUser = asyncHandler(async (req,res) => {
     const { email, password } = req.body
@@ -80,8 +123,7 @@ const loginUser = asyncHandler(async (req,res) => {
     if ( user && (await bcrypt.compare( password, user.password ))) {
         const accessToken = jwt.sign(
              { user: { email: user.email, id: user.id }},
-             process.env.ACCESS_TOKEN_SECRET,
-             {expiresIn: '48h'})
+             process.env.ACCESS_TOKEN_SECRET,)
              if (user.verifyEmail) {
                 console.log('email verified');
                 res.status(200).json({ token: accessToken, success: true, user })
@@ -354,6 +396,7 @@ const updateUserEmail = asyncHandler(async (req, res) => {
 
 module.exports = { 
     registerUser, 
+    registerGoogleUser, 
     loginUser, 
     currentUser, 
     getAllUsers,

@@ -20,19 +20,30 @@ const handleConnection = (socket, io) => {
       });
     
       socket.on('sendMessage', async (data) => {
-        const { room, to, customerId, message, role } = data;
+        const { room, to, customerId, message, role, clientId } = data;
     
         try {
-          const newMessage = new Chat({ room, customerId, message, role });
+          const newMessage = new Chat({ room, customerId, message, role, clientId });
           const response = await newMessage.save()
           
           console.log(response, 'sendMessage insert');
-          io.to(to).emit('recieveMessage', response)
+          io.to(to).emit('recieveMessage', data)
+          io.emit('alert',{clientId, customerId})
     
         } catch (error) {
           console.error('Error saving message:', error);
         }
       });
+
+      socket.on('findUsers', async (data) => {
+        const {userId} = data
+        try {
+          const users = await Chat.find({clientId:userId})
+          io.emit('getUsers', {users})
+        } catch (err) {
+          console.error('Error: ', error.message);
+        }
+      })
     
       socket.on('disconnect', () => {
         console.log('A user disconnected');

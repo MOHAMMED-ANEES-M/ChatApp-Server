@@ -5,6 +5,7 @@ const multer = require('multer');
 const upload = multer({ dest: 'uploads/' });
 const { 
     registerUser, 
+    registerGoogleUser, 
     loginUser, 
     currentUser, 
     getAllUsers, 
@@ -20,6 +21,7 @@ const {
 
 
 router.post("/register", registerUser);
+router.post("/google-register", registerGoogleUser);
 router.post("/login", loginUser)
 router.get("/current", verifyToken, currentUser)
 router.get("/", verifyToken, getAllUsers)
